@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign Up · Kings' Chat-Room</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <style>
+    /* SIGN UP PAGE — styles specific to sign-up.html */
+
+    .auth-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: calc(100vh - 80px);
+    }
+    .auth-brand {
+      background: linear-gradient(
+        160deg,
+        var(--plum) 0%,
+        var(--plum-deep) 100%
+      );
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 60px 64px;
+    }
+    .auth-brand h2 {
+      color: #fff;
+      font-size: 34px;
+      line-height: 1.25;
+      font-weight: 700;
+      max-width: 14ch;
+      margin: 0 0 16px;
+    }
+    .auth-brand p {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 15px;
+      line-height: 1.6;
+      max-width: 34ch;
+      margin: 0;
+    }
+    .auth-brand-quote {
+      margin-top: 56px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 14px;
+      padding: 18px 20px;
+      max-width: 340px;
+    }
+    .auth-brand-quote p {
+      color: #fff;
+      font-size: 14px;
+      line-height: 1.55;
+      margin: 0 0 12px;
+    }
+    .auth-brand-quote .who {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    .auth-form-panel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 40px;
+      background: #fff;
+    }
+    .auth-form-card {
+      width: 100%;
+      max-width: 380px;
+    }
+    .auth-form-card h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin: 0 0 8px;
+    }
+    .auth-form-card > p.lead {
+      font-size: 14.5px;
+      color: var(--lilac-dim);
+      margin: 0 0 32px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #222;
+      margin-bottom: 6px;
+    }
+    .form-input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      font-size: 16px;
+      font-family: inherit;
+      background: var(--parchment-dim);
+      color: var(--ink);
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: var(--gold);
+      background: #fff;
+    }
+    .form-input.input-error {
+      border-color: #d64545;
+      background: #fff5f5;
+    }
+    .field-error {
+      display: none;
+      color: #d64545;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+    .field-error.visible {
+      display: block;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 22px;
+      font-size: 13px;
+      color: #444;
+      line-height: 1.5;
+    }
+    .checkbox-row input {
+      margin-top: 3px;
+      accent-color: var(--gold);
+    }
+    .checkbox-row a {
+      color: var(--gold);
+      font-weight: 600;
+    }
+
+    .btn-block {
+      width: 100%;
+      justify-content: center;
+      padding: 13px 20px;
+      font-size: 15px;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-block:disabled {
+      opacity: 0.7;
+      cursor: default;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin: 26px 0;
+      color: var(--lilac-dim);
+      font-size: 12.5px;
+    }
+    .divider::before,
+    .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: #e6e6e6;
+    }
+
+    .oauth-row {
+      display: flex;
+      gap: 12px;
+    }
+    .oauth-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 11px 12px;
+      background: #fff;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #222;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .oauth-btn:hover {
+      background: var(--parchment-dim);
+    }
+
+    .auth-footnote {
+      text-align: center;
+      margin-top: 28px;
+      font-size: 13.5px;
+      color: var(--lilac-dim);
+    }
+    .auth-footnote a {
+      color: var(--gold);
+      font-weight: 600;
+    }
+
+    .form-toast {
+      display: none;
+      margin-top: 18px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      text-align: center;
+    }
+    .form-toast.visible {
+      display: block;
+    }
+    .form-toast.success {
+      background: #eaf7ee;
+      color: #1f7a3d;
+    }
+    .form-toast.error {
+      background: #fdeeee;
+      color: #b23b3b;
+    }
+
+    @media (max-width: 880px) {
+      .auth-split {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+      .auth-brand {
+        padding: 40px 24px;
+      }
+      .auth-brand h2 {
+        font-size: 24px;
+        max-width: none;
+      }
+      .auth-brand p {
+        display: none;
+      }
+      .auth-brand-quote {
+        display: none;
+      }
+      .auth-form-panel {
+        padding: 40px 24px 60px;
+      }
+    }
+  </style>
+  <body>
+    <nav>
+      <div class="nav-top">
+        <a class="logo" href="index.html">
+          <svg width="28" height="28" viewBox="0 0 30 30" fill="none">
+            <path
+              d="M5 21L5 12L9.5 16L15 8L20.5 16L25 12L25 21H5Z"
+              stroke="#141414"
+              stroke-width="1.8"
+              stroke-linejoin="round"
+            />
+            <circle cx="15" cy="24" r="1.3" fill="#141414" />
+          </svg>
+          <span>Kings' Chat-Room</span>
+        </a>
+        <div class="navright">
+          <span class="devices">Already a member?</span>
+          <a class="btn-gold" href="signin.html">Sign in</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="auth-split">
+      <section class="auth-brand">
+        <svg
+          width="52"
+          height="52"
+          viewBox="0 0 30 30"
+          fill="none"
+          style="margin-bottom: 32px"
+        >
+          <path
+            d="M5 21L5 12L9.5 16L15 8L20.5 16L25 12L25 21H5Z"
+            stroke="#fff"
+            stroke-width="1.6"
+            stroke-linejoin="round"
+          />
+          <circle cx="15" cy="24" r="1.3" fill="#fff" />
+        </svg>
+        <h2>Your own private court, in minutes.</h2>
+        <p>
+          Create your account and start rich, interactive conversations with
+          total privacy, built in from day one.
+        </p>
+
+        <div class="auth-brand-quote">
+          <p>
+            "Setup took two minutes. Now it's the only place my whole crew
+            actually replies."
+          </p>
+          <div class="who">
+            <span class="avatar-ring">FA</span>
+            King, Founder
+          </div>
+        </div>
+      </section>
+
+      <section class="auth-form-panel">
+        <div class="auth-form-card">
+          <h1>Create your account</h1>
+          <p class="lead">It only takes a minute to get started.</p>
+
+          <form id="signUpForm" novalidate>
+            <div class="form-group">
+              <label class="form-label" for="name">Full name</label>
+              <input
+                class="form-input"
+                type="text"
+                id="name"
+                placeholder="Your name"
+              />
+              <span class="field-error" id="nameError"
+                >Please enter your name.</span
+              >
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="email">Email address</label>
+              <input
+                class="form-input"
+                type="email"
+                id="email"
+                placeholder="you@example.com"
+              />
+              <span class="field-error" id="emailError"
+                >Please enter a valid email address.</span
+              >
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="password">Password</label>
+              <input
+                class="form-input"
+                type="password"
+                id="password"
+                placeholder="At least 8 characters"
+              />
+              <span class="field-error" id="passwordError"
+                >Password must be at least 8 characters.</span
+              >
+            </div>
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="terms" />
+              <label for="terms"
+                >I agree to the <a href="#">Terms of Service</a> and
+                <a href="#">Privacy Policy</a></label
+              >
+            </div>
+            <span
+              class="field-error"
+              id="termsError"
+              style="margin-top: -14px; margin-bottom: 14px"
+              >Please accept the terms to continue.</span
+            >
+
+            <button type="submit" class="btn-gold btn-block" id="signUpBtn">
+              Create account
+            </button>
+
+            <div class="form-toast" id="formToast"></div>
+
+            <div class="divider">or sign up with</div>
+
+            <div class="oauth-row">
+              <button type="button" class="oauth-btn" id="googleBtn">Google</button>
+              <button type="button" class="oauth-btn" id="githubBtn">Github</button>
+            </div>
+          </form>
+
+          <p class="auth-footnote">
+            Already have an account? <a href="signin.html">Sign in</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="signup.js"></script>
+  </body>
+</html>
