@@ -8,6 +8,7 @@ import {
   GoogleAuthProvider,
   GithubAuthProvider,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import { getDatabase } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyABrUR5ZwYcXLfwGkyqx7Ncct7Jz5DLqa0",
@@ -16,10 +17,13 @@ const firebaseConfig = {
   storageBucket: "chat-room-f4499.firebasestorage.app",
   messagingSenderId: "1025320632993",
   appId: "1:1025320632993:web:f776e8635808e7fc0266e0",
+  // Region confirmed via the Firebase SDK's own warning message.
+  databaseURL: "https://chat-room-f4499-default-rtdb.europe-west1.firebasedatabase.app",
 };
 
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
+export const db = getDatabase(app);
 export const googleProvider = new GoogleAuthProvider();
 export const githubProvider = new GithubAuthProvider();

@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Room · Kings' Chat-Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+/* ROOM — the actual chat interface for one room */
+
+.dash-body {
+  margin: 0;
+  padding-top: 68px;
+  height: 100vh;   /* fallback for browsers that don't support dvh */
+  height: 100dvh;  /* dynamic viewport height — adjusts when the mobile keyboard or browser toolbar shows/hides */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* TOP BAR — fixed so the browser's own "scroll to focused input" behavior
+   (which happens when the keyboard opens) can't carry it off-screen.
+   3-column grid (not flex) so the room name centers precisely even though
+   the back button and options button are different widths. */
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+  height: 68px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 1fr minmax(0, auto) 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 0 24px;
+  background: #efefef;
+  border-bottom: 1px solid #e2e2e2;
+}
+.topbar-left {
+  display: flex;
+  align-items: center;
+  justify-self: start;
+}
+.room-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  line-height: 1.3;
+  min-width: 0; /* lets the room name actually shrink/truncate inside a grid column */
+}
+.room-name {
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.online-count {
+  font-size: 11.5px;
+  color: var(--lilac-dim);
+}
+
+.btn-dark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--plum-deep);
+  color: #fff;
+  padding: 9px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 13.5px;
+  border: 1px solid var(--plum-deep);
+  cursor: pointer;
+  font-family: inherit;
+  flex: none;
+  white-space: nowrap;
+}
+.btn-dark:hover {
+  background: #241735;
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.05);
+  color: #444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: none;
+}
+.icon-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.room-options {
+  position: relative;
+  justify-self: end;
+}
+.room-options-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+  min-width: 170px;
+  padding: 6px;
+  z-index: 2000;
+}
+.room-options-menu.open {
+  display: block;
+}
+.room-options-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13.5px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.room-options-item:hover {
+  background: var(--parchment-dim);
+}
+.room-options-item.danger {
+  color: #c0392b;
+}
+.room-options-item.danger:hover {
+  background: #fdeeee;
+}
+
+/* CHAT ROOM — full-bleed backdrop, with the actual chat column
+   constrained and centered inside it instead of stretching edge to edge */
+.chat-room {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  background: var(--parchment-dim);
+  min-height: 0;
+  overflow: hidden;
+}
+.chat-room-inner {
+  width: 100%;
+  max-width: 760px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--lilac-dim);
+  padding: 40px;
+}
+.empty-state .icon-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  font-size: 22px;
+}
+.empty-state p {
+  font-size: 13px;
+  margin: 0;
+  max-width: 220px;
+}
+
+.message-row {
+  display: flex;
+  min-width: 0;
+}
+.message-row.mine {
+  justify-content: flex-end;
+}
+.message-row.theirs {
+  justify-content: flex-start;
+}
+
+.message-bubble {
+  max-width: 65%;
+  min-width: 0;
+  background: #fff;
+  border-radius: 14px 14px 14px 4px;
+  padding: 10px 14px;
+}
+.message-row.mine .message-bubble {
+  background: var(--gold);
+  color: #fff;
+  border-radius: 14px 14px 4px 14px;
+}
+
+.message-sender {
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-bottom: 3px;
+  opacity: 0.85;
+}
+
+.reply-quote {
+  font-size: 11.5px;
+  border-left: 2px solid rgba(0, 0, 0, 0.2);
+  padding: 3px 8px;
+  margin-bottom: 6px;
+  opacity: 0.75;
+}
+.message-row.mine .reply-quote {
+  border-left-color: rgba(255, 255, 255, 0.5);
+}
+
+.message-text {
+  font-size: 13.5px;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.edited-tag {
+  font-size: 10.5px;
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.message-time {
+  font-size: 10px;
+  opacity: 0.65;
+}
+.msg-action {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.msg-action:hover {
+  opacity: 1;
+}
+
+/* REPLY PREVIEW BAR */
+.reply-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff;
+  border-top: 1px solid #eee;
+  padding: 8px 20px;
+  font-size: 12.5px;
+  color: var(--lilac-dim);
+}
+.reply-preview button {
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  color: #888;
+  cursor: pointer;
+}
+
+/* COMPOSER */
+.message-composer {
+  display: flex;
+  gap: 10px;
+  background: #fff;
+  border-top: 1px solid #eee;
+  padding: 14px 24px;
+  min-width: 0;
+}
+.message-composer input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: var(--parchment-dim);
+  border-radius: 20px;
+  padding: 10px 16px;
+  font-family: inherit;
+  font-size: 16px; /* avoids iOS auto-zoom on focus */
+}
+
+/* MOBILE */
+@media (max-width: 700px) {
+  .topbar {
+    padding: 0 14px;
+  }
+  .btn-dark .label {
+    display: none;
+  }
+  .btn-dark {
+    padding: 9px 11px;
+  }
+  .message-bubble {
+    max-width: 85%;
+  }
+  .messages {
+    padding: 16px;
+  }
+  .message-composer,
+  .reply-preview {
+    padding: 12px 16px;
+  }
+}
+@media (max-width: 380px) {
+  .online-count {
+    display: none;
+  }
+}
+
+</style>
+</head>
+<body class="dash-body">
+
+<header class="topbar">
+  <div class="topbar-left">
+    <button class="btn-dark" id="backToRoomsBtn" type="button">&larr; <span class="label">Rooms</span></button>
+  </div>
+
+  <div class="room-heading">
+    <span class="room-name" id="roomName">Loading…</span>
+    <span class="online-count" id="onlineCount">0 people online</span>
+  </div>
+
+  <!-- Only shown to whoever created this room -->
+  <div class="room-options" id="roomOptions" style="display:none;">
+    <button class="icon-btn" id="roomOptionsBtn" title="Room options">
+      <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+        <circle cx="9" cy="4" r="1.4" fill="currentColor"/>
+        <circle cx="9" cy="9" r="1.4" fill="currentColor"/>
+        <circle cx="9" cy="14" r="1.4" fill="currentColor"/>
+      </svg>
+    </button>
+    <div class="room-options-menu" id="roomOptionsMenu">
+      <button class="room-options-item" id="clearMessagesBtn">Clear messages</button>
+      <button class="room-options-item danger" id="deleteRoomBtn">Delete room</button>
+    </div>
+  </div>
+</header>
+
+<main class="chat-room">
+  <div class="chat-room-inner">
+    <div class="messages" id="messages"></div>
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <div class="icon-circle">💬</div>
+      <p>No messages yet. Be the first to say something.</p>
+    </div>
+
+    <div class="reply-preview" id="replyPreview" style="display:none;">
+      <span id="replyPreviewText"></span>
+      <button id="cancelReplyBtn" type="button" title="Cancel reply">&times;</button>
+    </div>
+
+    <div class="message-composer">
+      <input type="text" id="messageInput" placeholder="Type your message here...">
+      <button id="sendButton" class="btn-gold">Send</button>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+// room.js
+// Same messaging pattern as before (flat indexed writes, localStorage user
+// reads, plain timestamp strings), now scoped under whichever room the
+// person clicked into from the room list.
+
+import { auth, db } from './firebase-config.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import {
+  ref,
+  set,
+  update,
+  remove,
+  onValue,
+  onDisconnect,
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
+
+// ---- Which room is this? ----
+const params = new URLSearchParams(window.location.search);
+const roomId = params.get('room');
+
+if (!roomId) {
+  window.location.href = './dashboard.html';
+}
+
+// ---- Elements ----
+const roomNameEl = document.getElementById('roomName');
+const onlineCountEl = document.getElementById('onlineCount');
+const messageInput = document.getElementById('messageInput');
+const sendButton = document.getElementById('sendButton');
+const messagesEl = document.getElementById('messages');
+const emptyStateEl = document.getElementById('emptyState');
+const replyPreviewEl = document.getElementById('replyPreview');
+const replyPreviewText = document.getElementById('replyPreviewText');
+const cancelReplyBtn = document.getElementById('cancelReplyBtn');
+const backToRoomsBtn = document.getElementById('backToRoomsBtn');
+const roomOptionsEl = document.getElementById('roomOptions');
+const roomOptionsBtn = document.getElementById('roomOptionsBtn');
+const roomOptionsMenu = document.getElementById('roomOptionsMenu');
+const clearMessagesBtn = document.getElementById('clearMessagesBtn');
+const deleteRoomBtn = document.getElementById('deleteRoomBtn');
+
+// ---- State ----
+let latestChats = {};
+let replyingToIndex = null;
+let editingIndex = null;
+let currentUserUid = null;
+let selfInitiatedRoomDeletion = false; // avoids showing the "room was deleted" alert to the person who just deleted it themselves
+
+// ---- Protected route ----
+onAuthStateChanged(auth, function (user) {
+  if (!user) {
+    window.location.href = './signin.html';
+    return;
+  }
+  currentUserUid = user.uid;
+  goOnlineInRoom(user.uid);
+  listenForRoomInfo();
+});
+
+// ---- Room name, creator check, and graceful redirect if the room gets deleted ----
+function listenForRoomInfo() {
+  onValue(ref(db, 'rooms/' + roomId), function (snap) {
+    if (!snap.exists()) {
+      if (!selfInitiatedRoomDeletion) {
+        alert('This room no longer exists — it may have been deleted.');
+      }
+      window.location.href = './dashboard.html';
+      return;
+    }
+
+    const room = snap.val();
+    roomNameEl.textContent = room.name;
+
+    // Only the person who created the room sees the Clear/Delete menu
+    roomOptionsEl.style.display = room.createdBy === currentUserUid ? 'block' : 'none';
+  });
+}
+
+// ---- Presence, scoped to this specific room ----
+function goOnlineInRoom(uid) {
+  const presenceRef = ref(db, 'presence/' + roomId + '/' + uid);
+  set(presenceRef, true);
+  onDisconnect(presenceRef).remove();
+}
+
+onValue(ref(db, 'presence/' + roomId), function (snapshot) {
+  const count = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+  onlineCountEl.textContent = count + (count === 1 ? ' person online' : ' people online');
+});
+
+// ---- Sending (or updating) a message ----
+sendButton.addEventListener('click', sendOrUpdateMessage);
+messageInput.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') sendOrUpdateMessage();
+});
+
+function sendOrUpdateMessage() {
+  const storedUser = localStorage.getItem('user');
+  if (!storedUser) {
+    console.error('No user found in localStorage. Cannot send message.');
+    return;
+  }
+  const convUser = JSON.parse(storedUser);
+
+  const text = messageInput.value.trim();
+  if (!text) return;
+
+  if (editingIndex !== null) {
+    update(ref(db, 'chats/' + roomId + '/' + editingIndex), {
+      message: text,
+      edited: true,
+    });
+    editingIndex = null;
+    sendButton.textContent = 'Send';
+  } else {
+    const chat = {
+      message: text,
+      uid: convUser.uid,
+      email: convUser.email,
+      fullname: convUser.fullname,
+      profileImage: convUser.profilePic,
+      timeStamp: new Date().toLocaleString(),
+      edited: false,
+      replyTo: replyingToIndex !== null ? buildReplySnippet(replyingToIndex) : null,
+    };
+
+    const nextIndex = getNextChatIndex();
+    set(ref(db, 'chats/' + roomId + '/' + nextIndex), chat);
+  }
+
+  messageInput.value = '';
+  clearReply();
+}
+
+function buildReplySnippet(index) {
+  const original = latestChats[index];
+  if (!original) return null;
+  return { index: index, message: original.message, fullname: original.fullname };
+}
+
+// Same fix as the single-room version: highest existing index + 1, not
+// .length, so a deleted message in the middle can't cause an overwrite.
+function getNextChatIndex() {
+  const keys = Object.keys(latestChats).map(Number);
+  if (keys.length === 0) return 0;
+  return Math.max(...keys) + 1;
+}
+
+// ---- Live message list for this room ----
+onValue(ref(db, 'chats/' + roomId), function (snapshot) {
+  const data = snapshot.val();
+  latestChats = data || {};
+
+  messagesEl.innerHTML = '';
+
+  if (data == null) {
+    messagesEl.style.display = 'none';
+    emptyStateEl.style.display = 'flex';
+    return;
+  }
+
+  messagesEl.style.display = 'flex';
+  emptyStateEl.style.display = 'none';
+
+  Object.keys(data)
+    .sort(function (a, b) { return Number(a) - Number(b); })
+    .forEach(function (index) {
+      messagesEl.appendChild(buildMessageEl(index, data[index], currentUserUid));
+    });
+
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+});
+
+function buildMessageEl(index, chat, myUid) {
+  const isMine = chat.uid === myUid;
+  const row = document.createElement('div');
+  row.className = 'message-row ' + (isMine ? 'mine' : 'theirs');
+
+  let replyHtml = '';
+  if (chat.replyTo) {
+    replyHtml = '<div class="reply-quote">Replying to ' + chat.replyTo.fullname + ': "' + chat.replyTo.message + '"</div>';
+  }
+
+  const ownerActions = isMine
+    ? '<button class="msg-action" data-action="edit" data-index="' + index + '">Edit</button>' +
+      '<button class="msg-action" data-action="delete" data-index="' + index + '">Delete</button>'
+    : '';
+
+  row.innerHTML =
+    '<div class="message-bubble">' +
+      '<div class="message-sender">' + (chat.fullname || chat.email) + '</div>' +
+      replyHtml +
+      '<div class="message-text">' + chat.message +
+        (chat.edited ? ' <span class="edited-tag">(edited)</span>' : '') +
+      '</div>' +
+      '<div class="message-meta">' +
+        '<span class="message-time">' + chat.timeStamp + '</span>' +
+        '<button class="msg-action" data-action="reply" data-index="' + index + '">Reply</button>' +
+        ownerActions +
+      '</div>' +
+    '</div>';
+
+  return row;
+}
+
+// ---- Reply / Edit / Delete ----
+messagesEl.addEventListener('click', function (e) {
+  const btn = e.target.closest('.msg-action');
+  if (!btn) return;
+
+  const action = btn.dataset.action;
+  const index = btn.dataset.index;
+  const chat = latestChats[index];
+  if (!chat) return;
+
+  if (action === 'reply') {
+    startReply(index, chat);
+  } else if (action === 'edit') {
+    startEdit(index, chat);
+  } else if (action === 'delete') {
+    if (confirm('Delete this message?')) {
+      remove(ref(db, 'chats/' + roomId + '/' + index));
+    }
+  }
+});
+
+function startReply(index, chat) {
+  replyingToIndex = index;
+  replyPreviewText.textContent = 'Replying to ' + chat.fullname + ': "' + chat.message + '"';
+  replyPreviewEl.style.display = 'flex';
+  messageInput.focus();
+}
+function clearReply() {
+  replyingToIndex = null;
+  replyPreviewEl.style.display = 'none';
+}
+cancelReplyBtn.addEventListener('click', clearReply);
+
+function startEdit(index, chat) {
+  editingIndex = index;
+  messageInput.value = chat.message;
+  sendButton.textContent = 'Update';
+  messageInput.focus();
+}
+
+// ---- Leaving the room removes your presence immediately, rather than
+//      waiting for onDisconnect to notice ----
+backToRoomsBtn.addEventListener('click', function () {
+  if (currentUserUid) remove(ref(db, 'presence/' + roomId + '/' + currentUserUid));
+  window.location.href = './dashboard.html';
+});
+
+// ---- Room options menu (creator only): Clear messages / Delete room ----
+roomOptionsBtn.addEventListener('click', function (e) {
+  e.stopPropagation();
+  roomOptionsMenu.classList.toggle('open');
+});
+
+document.addEventListener('click', function (e) {
+  if (!roomOptionsMenu.contains(e.target) && !roomOptionsBtn.contains(e.target)) {
+    roomOptionsMenu.classList.remove('open');
+  }
+});
+
+clearMessagesBtn.addEventListener('click', function () {
+  roomOptionsMenu.classList.remove('open');
+  if (confirm('Clear all messages in this room? This can\'t be undone.')) {
+    remove(ref(db, 'chats/' + roomId));
+    // No manual UI update needed — the messages listener above picks up
+    // the change automatically and swaps to the empty state on its own.
+  }
+});
+
+deleteRoomBtn.addEventListener('click', async function () {
+  roomOptionsMenu.classList.remove('open');
+  if (!confirm('Delete this room? This removes it and all its messages for everyone, and can\'t be undone.')) return;
+
+  selfInitiatedRoomDeletion = true;
+  await remove(ref(db, 'chats/' + roomId));
+  await remove(ref(db, 'presence/' + roomId));
+  await remove(ref(db, 'rooms/' + roomId));
+  window.location.href = './dashboard.html';
+});
+
+</script>
+</body>
+</html>

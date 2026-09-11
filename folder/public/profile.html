@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile · Kings' Chat-Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+/* PROFILE PAGE */
+
+.profile-body {
+  margin: 0;
+  padding-top: 0;
+  min-height: 100vh;
+  background: var(--parchment-dim);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: #efefef;
+  border-bottom: 1px solid #e2e2e2;
+}
+.topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--ink);
+}
+
+.btn-dark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--plum-deep);
+  color: #fff;
+  padding: 9px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 13.5px;
+  border: 1px solid var(--plum-deep);
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: none;
+}
+.btn-dark:hover {
+  background: #241735;
+}
+
+.profile-main {
+  display: flex;
+  justify-content: center;
+  padding: 60px 20px;
+}
+.profile-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 40px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 auto 24px;
+  background-size: cover;
+  background-position: center;
+}
+
+.modal-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #222;
+  margin: 14px 0 6px;
+}
+.modal-label:first-of-type {
+  margin-top: 0;
+}
+.modal-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  font-size: 16px; /* avoids iOS auto-zoom on focus */
+  font-family: inherit;
+  background: var(--parchment-dim);
+  color: var(--ink);
+}
+.modal-input:focus {
+  outline: none;
+  border-color: var(--gold);
+  background: #fff;
+}
+.modal-readonly {
+  border: 1px solid #eee;
+  background: var(--parchment-dim);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  color: var(--lilac-dim);
+}
+.modal-hint {
+  font-size: 12px;
+  color: #3fb56f;
+  margin: 10px 0 0;
+}
+
+.btn-block {
+  width: 100%;
+  justify-content: center;
+  padding: 13px 20px;
+  font-size: 15px;
+  border: none;
+  cursor: pointer;
+  margin-top: 22px;
+}
+
+.danger-zone {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #eee;
+}
+.danger-zone h3 {
+  font-size: 13px;
+  color: #c0392b;
+  margin: 0 0 6px;
+}
+.danger-zone p {
+  font-size: 12px;
+  color: var(--lilac-dim);
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+.btn-danger {
+  width: 100%;
+  background: #fff;
+  color: #c0392b;
+  border: 1px solid #c0392b;
+  border-radius: 10px;
+  padding: 11px 16px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-danger:hover {
+  background: #fdeeee;
+}
+
+</style>
+</head>
+<body class="profile-body">
+
+<header class="topbar">
+  <a class="topbar-logo" href="dashboard.html">
+    <svg width="24" height="24" viewBox="0 0 30 30" fill="none">
+      <path d="M5 21L5 12L9.5 16L15 8L20.5 16L25 12L25 21H5Z" stroke="#141414" stroke-width="1.8" stroke-linejoin="round"/>
+      <circle cx="15" cy="24" r="1.3" fill="#141414"/>
+    </svg>
+    <span>Kings' Chat-Room</span>
+  </a>
+  <a class="btn-dark" href="dashboard.html">Back to rooms</a>
+</header>
+
+<main class="profile-main">
+  <div class="profile-card">
+    <div class="profile-avatar" id="profileAvatar">?</div>
+
+    <label class="modal-label" for="profileNameInput">Full name</label>
+    <input type="text" id="profileNameInput" class="modal-input" placeholder="Your name">
+
+    <label class="modal-label">Email</label>
+    <div class="modal-readonly" id="profileEmailDisplay">—</div>
+
+    <p class="modal-hint" id="profileSavedHint" style="display:none;">Saved.</p>
+
+    <button class="btn-gold btn-block" id="saveProfileBtn">Save changes</button>
+
+    <div class="danger-zone">
+      <h3>Danger zone</h3>
+      <p>Deleting your account removes your login and profile permanently. This can't be undone.</p>
+      <button class="btn-danger" id="deleteAccountBtn">Delete my account</button>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+// profile.js
+// Real profile page: cached instant load, live edit, and account deletion.
+
+import { auth, db } from './firebase-config.js';
+import {
+  onAuthStateChanged,
+  updateProfile,
+  deleteUser,
+  signOut,
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import { ref, get, update, remove } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
+import User from './user.js';
+
+const profileAvatarEl = document.getElementById('profileAvatar');
+const profileNameInput = document.getElementById('profileNameInput');
+const profileEmailDisplay = document.getElementById('profileEmailDisplay');
+const profileSavedHint = document.getElementById('profileSavedHint');
+const saveProfileBtn = document.getElementById('saveProfileBtn');
+const deleteAccountBtn = document.getElementById('deleteAccountBtn');
+
+let currentUser = null;
+
+function getInitials(name) {
+  return (name || '?').trim().split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
+}
+
+function renderProfile(user) {
+  profileNameInput.value = user.fullname || '';
+  profileEmailDisplay.textContent = user.email || '—';
+
+  if (user.profilePic) {
+    profileAvatarEl.style.backgroundImage = 'url(' + user.profilePic + ')';
+    profileAvatarEl.textContent = '';
+  } else {
+    profileAvatarEl.style.backgroundImage = 'none';
+    profileAvatarEl.textContent = getInitials(user.fullname || user.email);
+  }
+}
+
+// ---- Protected route ----
+onAuthStateChanged(auth, async function (fbUser) {
+  if (!fbUser) {
+    window.location.href = './signin.html';
+    return;
+  }
+  currentUser = fbUser;
+
+  // 1. Instant paint from the cache saveUser() wrote at sign-in
+  const cached = User.getSavedUser();
+  if (cached) renderProfile(cached);
+
+  // 2. Quietly confirm against the real database and refresh the cache if it drifted
+  const snap = await get(ref(db, 'users/' + fbUser.uid));
+  if (snap.exists()) {
+    const fresh = new User(snap.val().fullname, fbUser.uid, snap.val().email, snap.val().photoURL);
+    renderProfile(fresh);
+    fresh.saveUser();
+  }
+});
+
+// ---- Save changes ----
+saveProfileBtn.addEventListener('click', async function () {
+  const newName = profileNameInput.value.trim();
+  if (!newName || !currentUser) return;
+
+  await update(ref(db, 'users/' + currentUser.uid), { fullname: newName });
+  await updateProfile(currentUser, { displayName: newName }); // keep Auth's own record in sync too
+
+  const updatedUser = new User(newName, currentUser.uid, currentUser.email, currentUser.photoURL || '');
+  updatedUser.saveUser();
+
+  profileSavedHint.style.display = 'block';
+  setTimeout(function () { profileSavedHint.style.display = 'none'; }, 1500);
+});
+
+// ---- Delete account ----
+deleteAccountBtn.addEventListener('click', async function () {
+  if (!currentUser) return;
+  if (!confirm('Delete your account? This cannot be undone.')) return;
+
+  try {
+    await remove(ref(db, 'users/' + currentUser.uid));
+    await remove(ref(db, 'presence/' + currentUser.uid));
+    await deleteUser(currentUser);
+    User.clearSavedUser();
+    window.location.href = './signup.html';
+  } catch (err) {
+    if (err.code === 'auth/requires-recent-login') {
+      alert('For security, please sign out and sign back in, then try deleting your account again.');
+    } else {
+      alert('Something went wrong: ' + err.message);
+    }
+  }
+});
+
+</script>
+</body>
+</html>
