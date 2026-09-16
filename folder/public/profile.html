@@ -8,8 +8,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
-/* PROFILE PAGE */
-
 .profile-body {
   margin: 0;
   padding-top: 0;
@@ -98,7 +96,7 @@
   padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid #ddd;
-  font-size: 16px; /* avoids iOS auto-zoom on focus */
+  font-size: 16px; 
   font-family: inherit;
   background: var(--parchment-dim);
   color: var(--ink);
@@ -186,6 +184,9 @@
     <label class="modal-label" for="profileNameInput">Full name</label>
     <input type="text" id="profileNameInput" class="modal-input" placeholder="Your name">
 
+    <label class="modal-label" for="profilePicInput">Profile picture URL</label>
+    <input type="url" id="profilePicInput" class="modal-input" placeholder="https://example.com/your-photo.jpg">
+
     <label class="modal-label">Email</label>
     <div class="modal-readonly" id="profileEmailDisplay">—</div>
 
@@ -217,6 +218,7 @@ import User from './user.js';
 
 const profileAvatarEl = document.getElementById('profileAvatar');
 const profileNameInput = document.getElementById('profileNameInput');
+const profilePicInput = document.getElementById('profilePicInput');
 const profileEmailDisplay = document.getElementById('profileEmailDisplay');
 const profileSavedHint = document.getElementById('profileSavedHint');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
@@ -230,6 +232,7 @@ function getInitials(name) {
 
 function renderProfile(user) {
   profileNameInput.value = user.fullname || '';
+  profilePicInput.value = user.profilePic || '';
   profileEmailDisplay.textContent = user.email || '—';
 
   if (user.profilePic) {
@@ -241,7 +244,19 @@ function renderProfile(user) {
   }
 }
 
-// ---- Protected route ----
+// Live preview: update the avatar as the person types/pastes a URL, before saving
+profilePicInput.addEventListener('input', function () {
+  const url = profilePicInput.value.trim();
+  if (url) {
+    profileAvatarEl.style.backgroundImage = 'url(' + url + ')';
+    profileAvatarEl.textContent = '';
+  } else {
+    profileAvatarEl.style.backgroundImage = 'none';
+    profileAvatarEl.textContent = getInitials(profileNameInput.value);
+  }
+});
+
+// Protected route 
 onAuthStateChanged(auth, async function (fbUser) {
   if (!fbUser) {
     window.location.href = './signin.html';
@@ -262,22 +277,23 @@ onAuthStateChanged(auth, async function (fbUser) {
   }
 });
 
-// ---- Save changes ----
+// Save changes 
 saveProfileBtn.addEventListener('click', async function () {
   const newName = profileNameInput.value.trim();
+  const newPic = profilePicInput.value.trim();
   if (!newName || !currentUser) return;
 
-  await update(ref(db, 'users/' + currentUser.uid), { fullname: newName });
-  await updateProfile(currentUser, { displayName: newName }); // keep Auth's own record in sync too
+  await update(ref(db, 'users/' + currentUser.uid), { fullname: newName, photoURL: newPic });
+  await updateProfile(currentUser, { displayName: newName, photoURL: newPic || null }); // keep Auth's own record in sync too
 
-  const updatedUser = new User(newName, currentUser.uid, currentUser.email, currentUser.photoURL || '');
+  const updatedUser = new User(newName, currentUser.uid, currentUser.email, newPic);
   updatedUser.saveUser();
 
   profileSavedHint.style.display = 'block';
   setTimeout(function () { profileSavedHint.style.display = 'none'; }, 1500);
 });
 
-// ---- Delete account ----
+// Delete account 
 deleteAccountBtn.addEventListener('click', async function () {
   if (!currentUser) return;
   if (!confirm('Delete your account? This cannot be undone.')) return;

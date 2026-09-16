@@ -10,7 +10,7 @@ class User {
 
   saveUser() {
     const user = {
-      fullname: this.fullname, // was this.name — fixed, constructor sets fullname
+      fullname: this.fullname, 
       uid: this.uid,
       email: this.email,
       profilePic: this.profilePic,

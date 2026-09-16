@@ -17,7 +17,6 @@ const firebaseConfig = {
   storageBucket: "chat-room-f4499.firebasestorage.app",
   messagingSenderId: "1025320632993",
   appId: "1:1025320632993:web:f776e8635808e7fc0266e0",
-  // Region confirmed via the Firebase SDK's own warning message.
   databaseURL: "https://chat-room-f4499-default-rtdb.europe-west1.firebasedatabase.app",
 };
 

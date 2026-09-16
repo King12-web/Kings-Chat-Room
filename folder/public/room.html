@@ -6,24 +6,19 @@
 <title>Room · Kings' Chat-Room</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.min.css">
 <link rel="stylesheet" href="style.css">
 <style>
-/* ROOM — the actual chat interface for one room */
-
 .dash-body {
   margin: 0;
   padding-top: 68px;
-  height: 100vh;   /* fallback for browsers that don't support dvh */
-  height: 100dvh;  /* dynamic viewport height — adjusts when the mobile keyboard or browser toolbar shows/hides */
+  height: 100vh;   
+  height: 100dvh;  
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* TOP BAR — fixed so the browser's own "scroll to focused input" behavior
-   (which happens when the keyboard opens) can't carry it off-screen.
-   3-column grid (not flex) so the room name centers precisely even though
-   the back button and options button are different widths. */
 .topbar {
   position: fixed;
   top: 0;
@@ -51,7 +46,7 @@
   align-items: center;
   text-align: center;
   line-height: 1.3;
-  min-width: 0; /* lets the room name actually shrink/truncate inside a grid column */
+  min-width: 0; 
 }
 .room-name {
   font-weight: 700;
@@ -144,9 +139,6 @@
 .room-options-item.danger:hover {
   background: #fdeeee;
 }
-
-/* CHAT ROOM — full-bleed backdrop, with the actual chat column
-   constrained and centered inside it instead of stretching edge to edge */
 .chat-room {
   flex: 1;
   display: flex;
@@ -280,7 +272,6 @@
   opacity: 1;
 }
 
-/* REPLY PREVIEW BAR */
 .reply-preview {
   display: flex;
   align-items: center;
@@ -301,7 +292,6 @@
   cursor: pointer;
 }
 
-/* COMPOSER */
 .message-composer {
   display: flex;
   gap: 10px;
@@ -319,10 +309,9 @@
   border-radius: 20px;
   padding: 10px 16px;
   font-family: inherit;
-  font-size: 16px; /* avoids iOS auto-zoom on focus */
+  font-size: 16px; 
 }
 
-/* MOBILE */
 @media (max-width: 700px) {
   .topbar {
     padding: 0 14px;
@@ -356,7 +345,7 @@
 
 <header class="topbar">
   <div class="topbar-left">
-    <button class="btn-dark" id="backToRoomsBtn" type="button">&larr; <span class="label">Rooms</span></button>
+    <button class="btn-dark" id="backToRoomsBtn" type="button"><i class="fa-solid fa-arrow-left"></i><span class="label">Rooms</span></button>
   </div>
 
   <div class="room-heading">
@@ -384,13 +373,13 @@
   <div class="chat-room-inner">
     <div class="messages" id="messages"></div>
     <div class="empty-state" id="emptyState" style="display:none;">
-      <div class="icon-circle">💬</div>
+      <div class="icon-circle"><i class="fa-solid fa-message"></i></div>
       <p>No messages yet. Be the first to say something.</p>
     </div>
 
     <div class="reply-preview" id="replyPreview" style="display:none;">
       <span id="replyPreviewText"></span>
-      <button id="cancelReplyBtn" type="button" title="Cancel reply">&times;</button>
+      <button id="cancelReplyBtn" type="button" title="Cancel reply"><i class="fa-solid fa-xmark"></i></button>
     </div>
 
     <div class="message-composer">
@@ -417,7 +406,7 @@ import {
   onDisconnect,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
 
-// ---- Which room is this? ----
+// Which room is this?
 const params = new URLSearchParams(window.location.search);
 const roomId = params.get('room');
 
@@ -425,7 +414,7 @@ if (!roomId) {
   window.location.href = './dashboard.html';
 }
 
-// ---- Elements ----
+//Elements
 const roomNameEl = document.getElementById('roomName');
 const onlineCountEl = document.getElementById('onlineCount');
 const messageInput = document.getElementById('messageInput');
@@ -442,14 +431,14 @@ const roomOptionsMenu = document.getElementById('roomOptionsMenu');
 const clearMessagesBtn = document.getElementById('clearMessagesBtn');
 const deleteRoomBtn = document.getElementById('deleteRoomBtn');
 
-// ---- State ----
+// State 
 let latestChats = {};
 let replyingToIndex = null;
 let editingIndex = null;
 let currentUserUid = null;
 let selfInitiatedRoomDeletion = false; // avoids showing the "room was deleted" alert to the person who just deleted it themselves
 
-// ---- Protected route ----
+//Protected route
 onAuthStateChanged(auth, function (user) {
   if (!user) {
     window.location.href = './signin.html';
@@ -460,7 +449,7 @@ onAuthStateChanged(auth, function (user) {
   listenForRoomInfo();
 });
 
-// ---- Room name, creator check, and graceful redirect if the room gets deleted ----
+//  Room name, creator check, and graceful redirect if the room gets deleted
 function listenForRoomInfo() {
   onValue(ref(db, 'rooms/' + roomId), function (snap) {
     if (!snap.exists()) {
@@ -479,7 +468,7 @@ function listenForRoomInfo() {
   });
 }
 
-// ---- Presence, scoped to this specific room ----
+// Presence, scoped to this specific room
 function goOnlineInRoom(uid) {
   const presenceRef = ref(db, 'presence/' + roomId + '/' + uid);
   set(presenceRef, true);
@@ -491,7 +480,7 @@ onValue(ref(db, 'presence/' + roomId), function (snapshot) {
   onlineCountEl.textContent = count + (count === 1 ? ' person online' : ' people online');
 });
 
-// ---- Sending (or updating) a message ----
+// Sending or updating a message
 sendButton.addEventListener('click', sendOrUpdateMessage);
 messageInput.addEventListener('keydown', function (e) {
   if (e.key === 'Enter') sendOrUpdateMessage();
@@ -549,7 +538,7 @@ function getNextChatIndex() {
   return Math.max(...keys) + 1;
 }
 
-// ---- Live message list for this room ----
+// Live message list for this room
 onValue(ref(db, 'chats/' + roomId), function (snapshot) {
   const data = snapshot.val();
   latestChats = data || {};
@@ -606,7 +595,7 @@ function buildMessageEl(index, chat, myUid) {
   return row;
 }
 
-// ---- Reply / Edit / Delete ----
+// Reply / Edit / Delete 
 messagesEl.addEventListener('click', function (e) {
   const btn = e.target.closest('.msg-action');
   if (!btn) return;
@@ -646,14 +635,14 @@ function startEdit(index, chat) {
   messageInput.focus();
 }
 
-// ---- Leaving the room removes your presence immediately, rather than
-//      waiting for onDisconnect to notice ----
+// Leaving the room removes your presence immediately, rather than
+//      waiting for onDisconnect to notice
 backToRoomsBtn.addEventListener('click', function () {
   if (currentUserUid) remove(ref(db, 'presence/' + roomId + '/' + currentUserUid));
   window.location.href = './dashboard.html';
 });
 
-// ---- Room options menu (creator only): Clear messages / Delete room ----
+// Room options menu (creator only): Clear messages / Delete room 
 roomOptionsBtn.addEventListener('click', function (e) {
   e.stopPropagation();
   roomOptionsMenu.classList.toggle('open');
@@ -669,8 +658,6 @@ clearMessagesBtn.addEventListener('click', function () {
   roomOptionsMenu.classList.remove('open');
   if (confirm('Clear all messages in this room? This can\'t be undone.')) {
     remove(ref(db, 'chats/' + roomId));
-    // No manual UI update needed — the messages listener above picks up
-    // the change automatically and swaps to the empty state on its own.
   }
 });
 

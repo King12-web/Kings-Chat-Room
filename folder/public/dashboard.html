@@ -6,9 +6,9 @@
 <title>Rooms · Kings' Chat-Room</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.min.css">
 <link rel="stylesheet" href="style.css">
 <style>
-/* DASHBOARD — room list */
 
 .dash-body {
   margin: 0;
@@ -17,7 +17,6 @@
   background: var(--parchment-dim);
 }
 
-/* TOP BAR (shared look with room.html, kept per-file to avoid cross-page CSS clashing) */
 .topbar {
   position: fixed;
   top: 0;
@@ -67,7 +66,6 @@
   background: #241735;
 }
 
-/* ROOM LIST */
 .rooms-main {
   padding: 48px 24px 60px;
   display: flex;
@@ -98,7 +96,7 @@
   border-radius: 10px;
   padding: 11px 14px;
   font-family: inherit;
-  font-size: 16px; /* avoids iOS auto-zoom on focus */
+  font-size: 16px; 
   background: #fff;
 }
 .create-room-row input:focus {
@@ -237,12 +235,6 @@
 </main>
 
 <script type="module">
-// dashboard.js — room list
-//
-// Data model:
-//   rooms/{roomId}                     -> { name, createdBy, createdByName, createdAt }
-//   chats/{roomId}/{index}             -> (same shape as the single-room version, just nested under a room now)
-//   presence/{roomId}/{uid}            -> true (who's currently inside that specific room)
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
@@ -256,7 +248,6 @@ const signOutBtn = document.getElementById('signOutBtn');
 
 let currentUser = null;
 
-// ---- Protected route ----
 onAuthStateChanged(auth, function (user) {
   if (!user) {
     window.location.href = './signin.html';
@@ -265,7 +256,7 @@ onAuthStateChanged(auth, function (user) {
   currentUser = user;
 });
 
-// ---- Create a room ----
+//  Create a room 
 createRoomBtn.addEventListener('click', createRoom);
 roomNameInput.addEventListener('keydown', function (e) {
   if (e.key === 'Enter') createRoom();
@@ -277,9 +268,6 @@ function createRoom() {
 
   const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
 
-  // push() gives us a guaranteed-unique key, which matters here since room
-  // names are free text and can't safely be used as a database key directly
-  // (Firebase keys can't contain characters like "." or "#").
   const newRoomRef = push(ref(db, 'rooms'));
   set(newRoomRef, {
     name: name,
@@ -291,9 +279,7 @@ function createRoom() {
   roomNameInput.value = '';
 }
 
-// ---- Live room list ----
-// A Set tracks which rooms we've already attached a presence listener to,
-// so re-renders (new room added, etc.) don't stack duplicate listeners.
+//  Live room list 
 const subscribedPresence = new Set();
 
 onValue(ref(db, 'rooms'), function (snapshot) {
@@ -301,7 +287,7 @@ onValue(ref(db, 'rooms'), function (snapshot) {
   roomListEl.innerHTML = '';
 
   if (!data) {
-    roomListEl.innerHTML = '<div class="room-list-empty"><div class="icon-circle">💬</div>No rooms yet — create the first one above.</div>';
+    roomListEl.innerHTML = '<div class="room-list-empty"><div class="icon-circle"><i class="fa-solid fa-message"></i></div>No rooms yet, create the first one above.</div>';
     return;
   }
 
@@ -322,8 +308,6 @@ onValue(ref(db, 'rooms'), function (snapshot) {
       subscribedPresence.add(roomId);
       onValue(ref(db, 'presence/' + roomId), function (presenceSnap) {
         const count = presenceSnap.exists() ? Object.keys(presenceSnap.val()).length : 0;
-        // Look the element up fresh each time — the list above gets
-        // rebuilt on every room list change, so this element is a new node.
         const el = document.getElementById('online-' + roomId);
         if (el) el.textContent = count + ' online';
       });
@@ -331,7 +315,7 @@ onValue(ref(db, 'rooms'), function (snapshot) {
   });
 });
 
-// ---- Sign out ----
+//Sign out 
 signOutBtn.addEventListener('click', function () {
   if (!confirm('Are you sure you want to sign out?')) return;
 
