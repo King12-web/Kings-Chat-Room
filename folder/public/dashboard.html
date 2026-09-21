@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Rooms · Kings' Chat-Room</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -217,7 +217,7 @@
 /* DASHBOARD TOAST (verify-email reminder) */
 .dash-toast {
   position: fixed;
-  bottom: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%) translateY(20px);
   background: var(--plum-deep);
@@ -387,6 +387,31 @@
   }
   .room-list {
     grid-template-columns: 1fr;
+  }
+
+  /* Toast: move from the bottom corner (easy to miss) to just under the
+     header, still centered, where it's far more likely to be noticed */
+  .dash-toast {
+    top: calc(78px + env(safe-area-inset-top, 0px));
+    bottom: auto;
+    transform: translateX(-50%) translateY(-14px);
+  }
+  .dash-toast.show {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Notification panel: on desktop this anchors to the bell icon itself,
+     but on a narrow screen that icon isn't near the screen edge, so a
+     340px panel anchored to it overflows past the left edge. Switch to a
+     fixed-position sheet sized to the viewport instead. */
+  .notif-panel {
+    position: fixed;
+    top: calc(78px + env(safe-area-inset-top, 0px));
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: none;
+    max-height: calc(100vh - 78px - 24px - env(safe-area-inset-top, 0px));
   }
 }
 
