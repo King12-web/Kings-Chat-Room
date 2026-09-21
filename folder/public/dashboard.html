@@ -390,14 +390,32 @@
   }
 
   /* Toast: move from the bottom corner (easy to miss) to just under the
-     header, still centered, where it's far more likely to be noticed */
+     header, and stack text/button/close vertically instead of a flex row
+     squeezing the text into a narrow column */
   .dash-toast {
     top: calc(78px + env(safe-area-inset-top, 0px));
     bottom: auto;
-    transform: translateX(-50%) translateY(-14px);
+    left: 16px;
+    right: 16px;
+    transform: translateY(-14px);
+    max-width: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 16px 40px 16px 16px;
+    position: fixed;
   }
   .dash-toast.show {
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
+  }
+  .dash-toast .dash-toast-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+  }
+  .dash-toast #dashToastAction {
+    width: 100%;
+    justify-content: center;
   }
 
   /* Notification panel: on desktop this anchors to the bell icon itself,
