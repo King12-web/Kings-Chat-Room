@@ -426,6 +426,7 @@ import {
   updateProfile,
   signInWithPopup,
   onAuthStateChanged,
+  sendEmailVerification,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import { ensureUserProfile } from './user-profile.js';
 import User from './user.js';
@@ -571,11 +572,12 @@ document.addEventListener('DOMContentLoaded', function () {
     createUserWithEmailAndPassword(auth, emailInput.value.trim(), passwordInput.value)
       .then((cred) => updateProfile(cred.user, { displayName: fullName }).then(() => cred.user))
       .then((fbUser) => ensureUserProfile(fbUser, { fullname: fullName }).then(() => fbUser))
+      .then((fbUser) => sendEmailVerification(fbUser).then(() => fbUser))
       .then((fbUser) => {
         const localUser = new User(fullName, fbUser.uid, fbUser.email, fbUser.photoURL || '');
         localUser.saveUser();
 
-        showToast('Account created! Redirecting…', 'success');
+        showToast('Account created! Check your email to verify. Redirecting…', 'success');
         window.location.href = './dashboard.html';
       })
       .catch((error) => {
