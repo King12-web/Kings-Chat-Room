@@ -367,6 +367,38 @@
   display: inline-block;
 }
 
+.room-card.room-card-locked {
+  cursor: default;
+}
+.room-card-action {
+  margin-top: 10px;
+}
+.room-status-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #d98c1f;
+  background: #fff4e6;
+  padding: 5px 10px;
+  border-radius: 12px;
+}
+.room-request-btn {
+  background: var(--plum-deep);
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 16px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+.room-request-btn:hover {
+  background: #241735;
+}
+
 @media (max-width: 600px) {
   .topbar {
     padding: 0 14px;
@@ -717,9 +749,11 @@ function createRoom() {
 }
 
 // ---- Live room list ----
-// A Set tracks which rooms we've already attached a presence listener to,
-// so re-renders (new room added, etc.) don't stack duplicate listeners.
+// Sets track which rooms we've already attached listeners to, so re-renders
+// (new room added, etc.) don't stack duplicate listeners.
 const subscribedPresence = new Set();
+const subscribedMembership = new Set();
+const roomStatus = {}; // roomId -> { isMember, isPending }
 
 onValue(ref(db, 'rooms'), function (snapshot) {
   const data = snapshot.val();
@@ -735,24 +769,96 @@ onValue(ref(db, 'rooms'), function (snapshot) {
 
     const card = document.createElement('a');
     card.className = 'room-card';
-    card.href = 'room.html?room=' + encodeURIComponent(roomId);
+    card.id = 'card-' + roomId;
     card.innerHTML =
       '<div class="room-card-name">' + room.name + '</div>' +
       '<div class="room-card-meta">Started by ' + (room.createdByName || 'someone') + '</div>' +
-      '<div class="room-card-online" id="online-' + roomId + '">0 online</div>';
+      '<div class="room-card-online" id="online-' + roomId + '" style="display:none;">0 online</div>' +
+      '<div class="room-card-action" id="action-' + roomId + '"></div>';
 
     roomListEl.appendChild(card);
+    updateRoomCard(roomId); // paint whatever status we already know, if any
 
-    if (!subscribedPresence.has(roomId)) {
-      subscribedPresence.add(roomId);
-      onValue(ref(db, 'presence/' + roomId), function (presenceSnap) {
-        const count = presenceSnap.exists() ? Object.keys(presenceSnap.val()).length : 0;
-        // Look the element up fresh each time — the list above gets
-        // rebuilt on every room list change, so this element is a new node.
-        const el = document.getElementById('online-' + roomId);
-        if (el) el.textContent = count + ' online';
+    if (!subscribedMembership.has(roomId)) {
+      subscribedMembership.add(roomId);
+      roomStatus[roomId] = { isMember: false, isPending: false };
+
+      onValue(ref(db, 'rooms/' + roomId + '/members/' + currentUser.uid), function (memberSnap) {
+        roomStatus[roomId].isMember = memberSnap.exists();
+        updateRoomCard(roomId);
+        maybeSubscribeToPresence(roomId);
+      });
+      onValue(ref(db, 'rooms/' + roomId + '/requests/' + currentUser.uid), function (reqSnap) {
+        roomStatus[roomId].isPending = reqSnap.exists();
+        updateRoomCard(roomId);
       });
     }
+  });
+});
+
+// The online-count preview needs a presence read, which the rules only
+// allow for actual members — so only subscribe (and only show the line at
+// all) once we know membership is confirmed, rather than showing a
+// permanently-stuck "0 online" for rooms we can't actually see into.
+function maybeSubscribeToPresence(roomId) {
+  if (!roomStatus[roomId] || !roomStatus[roomId].isMember) return;
+  if (subscribedPresence.has(roomId)) return;
+  subscribedPresence.add(roomId);
+
+  onValue(ref(db, 'presence/' + roomId), function (presenceSnap) {
+    const count = presenceSnap.exists() ? Object.keys(presenceSnap.val()).length : 0;
+    // Look the element up fresh each time — the list above gets
+    // rebuilt on every room list change, so this element is a new node.
+    const el = document.getElementById('online-' + roomId);
+    if (el) {
+      el.style.display = 'inline-flex';
+      el.textContent = count + ' online';
+    }
+  });
+}
+
+// Paints a room card's clickability + action area based on the latest
+// known membership/request status for the signed-in user.
+function updateRoomCard(roomId) {
+  const card = document.getElementById('card-' + roomId);
+  const actionEl = document.getElementById('action-' + roomId);
+  if (!card || !actionEl) return;
+
+  const status = roomStatus[roomId] || { isMember: false, isPending: false };
+
+  if (status.isMember) {
+    card.href = 'room.html?room=' + encodeURIComponent(roomId);
+    card.classList.remove('room-card-locked');
+    actionEl.innerHTML = '';
+  } else if (status.isPending) {
+    card.removeAttribute('href');
+    card.classList.add('room-card-locked');
+    actionEl.innerHTML = '<span class="room-status-pending">Pending approval</span>';
+  } else {
+    card.removeAttribute('href');
+    card.classList.add('room-card-locked');
+    actionEl.innerHTML = '<button class="room-request-btn" data-room-id="' + roomId + '">Request to join</button>';
+  }
+}
+
+// One listener on the list container handles every "Request to join" click,
+// including ones on cards that get rebuilt later.
+roomListEl.addEventListener('click', function (e) {
+  const btn = e.target.closest('.room-request-btn');
+  if (!btn) return;
+  e.preventDefault();
+
+  const roomId = btn.dataset.roomId;
+  const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
+
+  set(ref(db, 'rooms/' + roomId + '/requests/' + currentUser.uid), {
+    fullname: storedUser ? storedUser.fullname : currentUser.email,
+    email: currentUser.email,
+    requestedAt: new Date().toLocaleString(),
+  }).then(function () {
+    showDashToast('Request sent — waiting for the room owner to approve it.', null);
+  }).catch(function (err) {
+    showDashToast('Could not send request: ' + err.message, null);
   });
 });
 

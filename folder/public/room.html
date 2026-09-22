@@ -52,6 +52,79 @@
   text-align: center;
   line-height: 1.3;
   min-width: 0; /* lets the room name actually shrink/truncate inside a grid column */
+  position: relative;
+}
+.online-count {
+  background: none;
+  border: none;
+  font-family: inherit;
+  color: var(--lilac-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+.online-count:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--ink);
+}
+.online-popover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16);
+  width: 220px;
+  padding: 6px;
+  z-index: 2000;
+  text-align: left;
+}
+.online-popover.open {
+  display: block;
+}
+.online-popover-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--lilac-dim);
+  padding: 8px 10px 4px;
+}
+.online-popover-empty {
+  padding: 10px 10px 12px;
+  font-size: 12px;
+  color: var(--lilac-dim);
+}
+.online-person {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 8px;
+}
+.online-person:hover {
+  background: var(--parchment-dim);
+}
+.online-person .avatar-ring {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  font-size: 10.5px;
+}
+.online-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #3fb56f;
+  border: 2px solid #fff;
+}
+.online-person span.name {
+  font-size: 13px;
 }
 .room-name {
   font-weight: 700;
@@ -432,6 +505,22 @@
   background-position: center;
 }
 
+.avatar-ring {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  flex: none;
+  background-size: cover;
+  background-position: center;
+}
+
 .message-bubble {
   max-width: 65%;
   min-width: 0;
@@ -473,6 +562,38 @@
   font-size: 10.5px;
   opacity: 0.6;
   font-style: italic;
+}
+
+.seen-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  cursor: pointer;
+  align-self: flex-end;
+}
+.seen-avatars {
+  display: flex;
+}
+.seen-avatars .avatar-ring {
+  width: 18px;
+  height: 18px;
+  font-size: 8px;
+  margin-left: -6px;
+  border: 2px solid var(--parchment-dim);
+}
+.seen-avatars .avatar-ring:first-child {
+  margin-left: 0;
+}
+.seen-label {
+  font-size: 10.5px;
+  color: var(--lilac-dim);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.seen-row:hover .seen-label {
+  color: var(--ink);
 }
 
 .message-meta {
@@ -582,7 +703,13 @@
 
   <div class="room-heading">
     <span class="room-name" id="roomName">Loading…</span>
-    <span class="online-count" id="onlineCount">0 people online</span>
+    <button class="online-count" id="onlineCount" type="button">0 people online</button>
+
+    <div class="online-popover" id="onlinePopover">
+      <div class="online-popover-label">Online now</div>
+      <div id="onlinePopoverList"></div>
+      <div class="online-popover-empty" id="onlinePopoverEmpty" style="display:none;">Nobody's online right now.</div>
+    </div>
   </div>
 
   <!-- Only shown to whoever created this room -->
@@ -621,6 +748,17 @@
       <div class="section-label">Members <span id="memberCountLabel">(0)</span></div>
       <div id="membersList"></div>
     </div>
+  </div>
+</div>
+
+<!-- Full "seen by" list for the sender's most recent message -->
+<div class="modal-overlay" id="seenOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Seen by</h3>
+      <button class="modal-close" id="seenCloseBtn">&times;</button>
+    </div>
+    <div class="modal-body" id="seenModalBody"></div>
   </div>
 </div>
 
@@ -682,6 +820,9 @@ if (!roomId) {
 // ---- Elements ----
 const roomNameEl = document.getElementById('roomName');
 const onlineCountEl = document.getElementById('onlineCount');
+const onlinePopover = document.getElementById('onlinePopover');
+const onlinePopoverList = document.getElementById('onlinePopoverList');
+const onlinePopoverEmpty = document.getElementById('onlinePopoverEmpty');
 const messageInput = document.getElementById('messageInput');
 const sendButton = document.getElementById('sendButton');
 const messagesEl = document.getElementById('messages');
@@ -713,6 +854,9 @@ const membersList = document.getElementById('membersList');
 const requestsEmptyNote = document.getElementById('requestsEmptyNote');
 const reqCountLabel = document.getElementById('reqCountLabel');
 const memberCountLabel = document.getElementById('memberCountLabel');
+const seenOverlay = document.getElementById('seenOverlay');
+const seenCloseBtn = document.getElementById('seenCloseBtn');
+const seenModalBody = document.getElementById('seenModalBody');
 
 // ---- State ----
 let latestChats = {};
@@ -847,9 +991,45 @@ function goOnlineInRoom(uid) {
   onDisconnect(presenceRef).remove();
 }
 
-onValue(ref(db, 'presence/' + roomId), function (snapshot) {
-  const count = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+onValue(ref(db, 'presence/' + roomId), async function (snapshot) {
+  const uids = snapshot.exists() ? Object.keys(snapshot.val()) : [];
+  const count = uids.length;
   onlineCountEl.textContent = count + (count === 1 ? ' person online' : ' people online');
+
+  onlinePopoverList.innerHTML = '';
+  onlinePopoverEmpty.style.display = count === 0 ? 'block' : 'none';
+
+  for (const uid of uids) {
+    const isSelf = uid === currentUserUid;
+    let fullname, displayName;
+
+    if (isSelf) {
+      const stored = JSON.parse(localStorage.getItem('user') || 'null');
+      fullname = stored ? stored.fullname : (auth.currentUser ? auth.currentUser.email : '?');
+      displayName = 'You';
+    } else {
+      const profile = await getUserProfileOnce(uid);
+      fullname = profile.fullname || profile.email;
+      displayName = fullname;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'online-person';
+    row.innerHTML =
+      '<span class="avatar-ring">' + getInitials(fullname) + '<span class="online-dot"></span></span>' +
+      '<span class="name">' + displayName + '</span>';
+    onlinePopoverList.appendChild(row);
+  }
+});
+
+onlineCountEl.addEventListener('click', function (e) {
+  e.stopPropagation();
+  onlinePopover.classList.toggle('open');
+});
+document.addEventListener('click', function (e) {
+  if (!onlinePopover.contains(e.target) && !onlineCountEl.contains(e.target)) {
+    onlinePopover.classList.remove('open');
+  }
 });
 
 // ---- Sending (or updating) a message ----
@@ -927,10 +1107,27 @@ function listenForMessages() {
     messagesEl.style.display = 'flex';
     emptyStateEl.style.display = 'none';
 
+    // Find the highest-indexed message that's actually mine, so only the
+    // most recent one shows a "seen by" row instead of repeating it under
+    // every message I've ever sent.
+    let latestOwnIndex = null;
+    Object.keys(data).forEach(function (index) {
+      if (data[index].uid === currentUserUid) {
+        if (latestOwnIndex === null || Number(index) > Number(latestOwnIndex)) latestOwnIndex = index;
+      }
+    });
+
     Object.keys(data)
       .sort(function (a, b) { return Number(a) - Number(b); })
       .forEach(function (index) {
-        messagesEl.appendChild(buildMessageEl(index, data[index], currentUserUid));
+        const chat = data[index];
+        messagesEl.appendChild(buildMessageEl(index, chat, currentUserUid, index === latestOwnIndex));
+
+        // Simple "seen" model: being in the room with the message loaded
+        // counts as having seen it — not true scroll-based tracking.
+        if (chat.uid !== currentUserUid && (!chat.seenBy || !chat.seenBy[currentUserUid])) {
+          set(ref(db, 'chats/' + roomId + '/' + index + '/seenBy/' + currentUserUid), true);
+        }
       });
 
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -941,7 +1138,7 @@ function getInitials(name) {
   return (name || '?').trim().split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
 }
 
-function buildMessageEl(index, chat, myUid) {
+function buildMessageEl(index, chat, myUid, isLatestOwn) {
   const isMine = chat.uid === myUid;
   const row = document.createElement('div');
   row.className = 'message-row ' + (isMine ? 'mine' : 'theirs');
@@ -965,6 +1162,18 @@ function buildMessageEl(index, chat, myUid) {
       : '<div class="message-avatar">' + getInitials(chat.fullname || chat.email) + '</div>';
   }
 
+  const seenByUids = chat.seenBy ? Object.keys(chat.seenBy) : [];
+  let seenHtml = '';
+  if (isMine && isLatestOwn && seenByUids.length > 0) {
+    seenHtml =
+      '<div class="seen-row" data-action="seen" data-index="' + index + '">' +
+        '<div class="seen-avatars" id="seen-avatars-' + index + '"></div>' +
+        '<span class="seen-label">Seen by ' + seenByUids.length +
+          ' <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M2 1.5 6 4.5 2 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        '</span>' +
+      '</div>';
+  }
+
   row.innerHTML =
     avatarHtml +
     '<div class="message-bubble">' +
@@ -978,9 +1187,35 @@ function buildMessageEl(index, chat, myUid) {
         '<button class="msg-action" data-action="reply" data-index="' + index + '">Reply</button>' +
         ownerActions +
       '</div>' +
+      seenHtml +
     '</div>';
 
+  if (isMine && isLatestOwn && seenByUids.length > 0) {
+    populateSeenAvatars(index, seenByUids);
+  }
+
   return row;
+}
+
+// Fills in the (up to 3) small avatars in a message's "seen by" row —
+// done after the row is in the DOM since it needs async profile lookups.
+async function populateSeenAvatars(index, seenByUids) {
+  const container = document.getElementById('seen-avatars-' + index);
+  if (!container) return;
+  let html = '';
+  for (const uid of seenByUids.slice(0, 3)) {
+    const isSelf = uid === currentUserUid;
+    let fullname;
+    if (isSelf) {
+      const stored = JSON.parse(localStorage.getItem('user') || 'null');
+      fullname = stored ? stored.fullname : (auth.currentUser ? auth.currentUser.email : '?');
+    } else {
+      const profile = await getUserProfileOnce(uid);
+      fullname = profile.fullname || profile.email;
+    }
+    html += '<span class="avatar-ring">' + getInitials(fullname) + '</span>';
+  }
+  container.innerHTML = html;
 }
 
 // ---- Reply / Edit / Delete ----
@@ -1002,6 +1237,45 @@ messagesEl.addEventListener('click', function (e) {
       remove(ref(db, 'chats/' + roomId + '/' + index));
     }
   }
+});
+
+// ---- "Seen by" full list ----
+messagesEl.addEventListener('click', async function (e) {
+  const seenRow = e.target.closest('.seen-row');
+  if (!seenRow) return;
+
+  const index = seenRow.dataset.index;
+  const chat = latestChats[index];
+  if (!chat || !chat.seenBy) return;
+
+  const uids = Object.keys(chat.seenBy);
+  seenModalBody.innerHTML = '';
+
+  for (const uid of uids) {
+    const isSelf = uid === currentUserUid;
+    let fullname;
+    if (isSelf) {
+      const stored = JSON.parse(localStorage.getItem('user') || 'null');
+      fullname = stored ? stored.fullname : (auth.currentUser ? auth.currentUser.email : '?');
+    } else {
+      const profile = await getUserProfileOnce(uid);
+      fullname = profile.fullname || profile.email;
+    }
+    const row = document.createElement('div');
+    row.className = 'person-row';
+    row.innerHTML =
+      '<span class="avatar-ring">' + getInitials(fullname) + '</span>' +
+      '<div class="person-info"><div class="person-name">' + (isSelf ? 'You' : fullname) + '</div></div>';
+    seenModalBody.appendChild(row);
+  }
+
+  seenOverlay.classList.add('open');
+});
+seenCloseBtn.addEventListener('click', function () {
+  seenOverlay.classList.remove('open');
+});
+seenOverlay.addEventListener('click', function (e) {
+  if (e.target === seenOverlay) seenOverlay.classList.remove('open');
 });
 
 function startReply(index, chat) {
