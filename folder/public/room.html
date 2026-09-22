@@ -646,7 +646,7 @@
   <!-- Shown instead of the chat when the signed-in user isn't a member of this room -->
   <div class="not-member-state" id="notMemberState">
     <div class="icon-circle">🔒</div>
-    <h2>This room is by invitation</h2>
+    <h2 id="notMemberHeading">This room is by invitation</h2>
     <p id="notMemberText">You'll need the room owner to accept your request before you can see messages here.</p>
     <button class="btn-gold" id="requestJoinBtn">Request to join</button>
     <span class="room-status-pending" id="pendingLabel" style="display:none;">Pending approval</span>
@@ -698,6 +698,7 @@ const deleteRoomBtn = document.getElementById('deleteRoomBtn');
 
 const chatRoomInnerEl = document.getElementById('chatRoomInner');
 const notMemberStateEl = document.getElementById('notMemberState');
+const notMemberHeading = document.getElementById('notMemberHeading');
 const notMemberText = document.getElementById('notMemberText');
 const requestJoinBtn = document.getElementById('requestJoinBtn');
 const pendingLabel = document.getElementById('pendingLabel');
@@ -722,6 +723,9 @@ let selfInitiatedRoomDeletion = false; // avoids showing the "room was deleted" 
 let chatStarted = false; // guards against starting presence/messages more than once
 let manageListenersStarted = false; // guards the owner-only requests/members listeners
 let roomCreatedBy = null;
+let isMemberNode = false;
+let hasBeenMemberThisSession = false; // lets us tell "never had access" apart from "just lost it"
+let unsubscribeMessages = null;
 const profileCache = {}; // uid -> { fullname, email }, avoids re-fetching the same person repeatedly
 
 // ---- Protected route ----
@@ -749,7 +753,6 @@ function listenForRoomInfo() {
     const room = snap.val();
     roomCreatedBy = room.createdBy;
     roomNameEl.textContent = room.name;
-    notMemberText.textContent = 'You\'ll need the owner of "' + room.name + '" to accept your request before you can see messages here.';
 
     const isOwner = room.createdBy === currentUserUid;
     // Only the person who created the room sees the Manage/Clear/Delete menu
@@ -759,26 +762,62 @@ function listenForRoomInfo() {
       manageListenersStarted = true;
       listenForRequestsAndMembers();
     }
+
+    evaluateMembership(); // we now know createdBy — re-check in case that alone settles it
   });
 }
 
 // ---- Membership gate: only members see the actual chat ----
 function checkMembership() {
   onValue(ref(db, 'rooms/' + roomId + '/members/' + currentUserUid), function (snap) {
-    const isMember = snap.exists();
-    chatRoomInnerEl.style.display = isMember ? 'flex' : 'none';
-    notMemberStateEl.style.display = isMember ? 'none' : 'flex';
-
-    if (isMember) {
-      if (!chatStarted) {
-        chatStarted = true;
-        goOnlineInRoom(currentUserUid);
-        listenForMessages();
-      }
-    } else {
-      listenForOwnRequestStatus();
-    }
+    isMemberNode = snap.exists();
+    evaluateMembership();
   });
+}
+
+// Combines both signals: the members node itself, AND a safety net that
+// always treats the room's creator as a member. Without this second check,
+// a room whose members node is missing or hasn't synced yet would lock its
+// own owner out — the creator should never depend on that node existing.
+function evaluateMembership() {
+  const isMember = isMemberNode || (roomCreatedBy !== null && roomCreatedBy === currentUserUid);
+
+  if (isMember) {
+    hasBeenMemberThisSession = true;
+    chatRoomInnerEl.style.display = 'flex';
+    notMemberStateEl.style.display = 'none';
+
+    if (!chatStarted) {
+      chatStarted = true;
+      goOnlineInRoom(currentUserUid);
+      unsubscribeMessages = listenForMessages();
+    }
+    return;
+  }
+
+  // Not a member: tear down the chat listener so it doesn't sit there with
+  // stale data (or silently fail once it loses read access), and show the gate.
+  chatRoomInnerEl.style.display = 'none';
+  notMemberStateEl.style.display = 'flex';
+
+  if (unsubscribeMessages) {
+    unsubscribeMessages();
+    unsubscribeMessages = null;
+  }
+  chatStarted = false; // allows the chat to restart cleanly if they're re-added later
+  remove(ref(db, 'presence/' + roomId + '/' + currentUserUid)); // clean up our own presence immediately, don't wait for onDisconnect
+
+  if (hasBeenMemberThisSession) {
+    notMemberHeading.textContent = "You've been removed from this room";
+    notMemberText.textContent = 'The room owner removed you. You can request to join again below.';
+    requestJoinBtn.textContent = 'Request to rejoin';
+  } else {
+    notMemberHeading.textContent = 'This room is by invitation';
+    notMemberText.textContent = "You'll need the room owner to accept your request before you can see messages here.";
+    requestJoinBtn.textContent = 'Request to join';
+  }
+
+  listenForOwnRequestStatus();
 }
 
 // ---- Request to join (shown on the gate screen for non-members) ----
@@ -873,7 +912,7 @@ function getNextChatIndex() {
 
 // ---- Live message list for this room (only started once membership is confirmed) ----
 function listenForMessages() {
-  onValue(ref(db, 'chats/' + roomId), function (snapshot) {
+  return onValue(ref(db, 'chats/' + roomId), function (snapshot) {
     const data = snapshot.val();
     latestChats = data || {};
 
