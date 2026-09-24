@@ -870,6 +870,8 @@ let roomCreatedBy = null;
 let isMemberNode = false;
 let hasBeenMemberThisSession = false; // lets us tell "never had access" apart from "just lost it"
 let unsubscribeMessages = null;
+let currentMemberUids = [];
+let currentRequestUids = [];
 const profileCache = {}; // uid -> { fullname, email }, avoids re-fetching the same person repeatedly
 
 // ---- Protected route ----
@@ -975,11 +977,14 @@ function listenForOwnRequestStatus() {
 
 requestJoinBtn.addEventListener('click', function () {
   const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
-  set(ref(db, 'rooms/' + roomId + '/requests/' + currentUserUid), {
+  const updates = {};
+  updates['rooms/' + roomId + '/requests/' + currentUserUid] = {
     fullname: storedUser ? storedUser.fullname : (auth.currentUser ? auth.currentUser.email : ''),
     email: auth.currentUser ? auth.currentUser.email : '',
     requestedAt: new Date().toLocaleString(),
-  }).catch(function (err) {
+  };
+  updates['userRequests/' + currentUserUid + '/' + roomId] = true;
+  update(ref(db), updates).catch(function (err) {
     alert('Could not send request: ' + err.message);
   });
 });
@@ -1330,9 +1335,30 @@ deleteRoomBtn.addEventListener('click', async function () {
   if (!confirm('Delete this room? This removes it and all its messages for everyone, and can\'t be undone.')) return;
 
   selfInitiatedRoomDeletion = true;
-  await remove(ref(db, 'chats/' + roomId));
-  await remove(ref(db, 'presence/' + roomId));
-  await remove(ref(db, 'rooms/' + roomId));
+
+  // One atomic update: deletes the room, its chats, its presence, AND cleans
+  // up every member's/requester's index entry for it (those live in a
+  // separate top-level tree, so deleting rooms/{roomId} alone wouldn't
+  // reach them — without this they'd be left pointing at a room that no
+  // longer exists).
+  const updates = {};
+  currentMemberUids.forEach(function (uid) {
+    updates['userMemberships/' + uid + '/' + roomId] = null;
+  });
+  currentRequestUids.forEach(function (uid) {
+    updates['userRequests/' + uid + '/' + roomId] = null;
+  });
+  updates['rooms/' + roomId] = null;
+  updates['chats/' + roomId] = null;
+  updates['presence/' + roomId] = null;
+
+  try {
+    await update(ref(db), updates);
+  } catch (err) {
+    alert('Could not delete room: ' + err.message);
+    selfInitiatedRoomDeletion = false;
+    return;
+  }
   window.location.href = './dashboard.html';
 });
 
@@ -1370,6 +1396,7 @@ function listenForRequestsAndMembers() {
 
 function renderRequests(data) {
   const ids = Object.keys(data);
+  currentRequestUids = ids;
   requestsList.innerHTML = '';
 
   ids.forEach(function (uid) {
@@ -1398,6 +1425,7 @@ function renderRequests(data) {
 }
 
 async function renderMembers(uids) {
+  currentMemberUids = uids;
   membersList.innerHTML = '';
   memberCountLabel.textContent = '(' + uids.length + ')';
 
@@ -1434,8 +1462,13 @@ membersList.addEventListener('click', function (e) {
 
 async function acceptRequest(uid) {
   try {
-    await set(ref(db, 'rooms/' + roomId + '/members/' + uid), true);
-    await remove(ref(db, 'rooms/' + roomId + '/requests/' + uid));
+    const updates = {};
+    updates['rooms/' + roomId + '/members/' + uid] = true;
+    updates['userMemberships/' + uid + '/' + roomId] = true;
+    updates['rooms/' + roomId + '/requests/' + uid] = null;
+    updates['userRequests/' + uid + '/' + roomId] = null;
+    await update(ref(db), updates);
+
     const notifRef = push(ref(db, 'notifications/' + uid));
     await set(notifRef, {
       type: 'join_accepted',
@@ -1452,7 +1485,11 @@ async function acceptRequest(uid) {
 
 async function declineRequest(uid) {
   try {
-    await remove(ref(db, 'rooms/' + roomId + '/requests/' + uid));
+    const updates = {};
+    updates['rooms/' + roomId + '/requests/' + uid] = null;
+    updates['userRequests/' + uid + '/' + roomId] = null;
+    await update(ref(db), updates);
+
     const notifRef = push(ref(db, 'notifications/' + uid));
     await set(notifRef, {
       type: 'join_declined',
@@ -1470,7 +1507,10 @@ async function declineRequest(uid) {
 async function removeMember(uid) {
   if (!confirm('Remove this member from the room?')) return;
   try {
-    await remove(ref(db, 'rooms/' + roomId + '/members/' + uid));
+    const updates = {};
+    updates['rooms/' + roomId + '/members/' + uid] = null;
+    updates['userMemberships/' + uid + '/' + roomId] = null;
+    await update(ref(db), updates);
   } catch (err) {
     alert('Could not remove member: ' + err.message);
   }

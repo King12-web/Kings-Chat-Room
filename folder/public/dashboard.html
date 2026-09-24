@@ -325,6 +325,18 @@
   margin-bottom: 14px;
   font-size: 22px;
 }
+.spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid #e2e2e2;
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  margin-bottom: 14px;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 .room-card {
   display: block;
@@ -514,7 +526,9 @@
       <button id="createRoomBtn" class="btn-gold">Create room</button>
     </div>
 
-    <div class="room-list" id="roomList"></div>
+    <div class="room-list" id="roomList">
+      <div class="room-list-empty"><div class="spinner"></div>Loading rooms…</div>
+    </div>
   </div>
 </main>
 
@@ -646,7 +660,7 @@ function listenForNotifications() {
 
     notifList.innerHTML = '';
 
-    // A live, unstored reminder while the account is unverified \u2014 sits at
+    // A live, unstored reminder while the account is unverified — sits at
     // the top of the list alongside real notifications.
     if (!currentUser.emailVerified) {
       unread += 1;
@@ -715,7 +729,7 @@ function createRoom() {
   const name = roomNameInput.value.trim();
   if (!name || !currentUser) return;
 
-  // The database rules enforce this too (auth.token.email_verified) \u2014 this
+  // The database rules enforce this too (auth.token.email_verified) — this
   // check is just so an unverified user gets a clear message instead of a
   // silent "permission denied" from Firebase.
   if (!currentUser.emailVerified) {
@@ -737,10 +751,15 @@ function createRoom() {
     createdByName: storedUser ? storedUser.fullname : currentUser.email,
     createdAt: new Date().toLocaleString(),
   }).then(function () {
-    // The creator is automatically the room's first (and only, for now) member.
-    // Required under the new rules \u2014 without this, the creator couldn't read
-    // or send messages in the room they just made.
-    return set(ref(db, 'rooms/' + newRoomId + '/members/' + currentUser.uid), true);
+    // The creator is automatically the room's first (and only, for now)
+    // member. Required under the new rules -- without this, the creator
+    // couldn't read or send messages in the room they just made. Writing
+    // both the source-of-truth path and the userMemberships index together,
+    // atomically.
+    const updates = {};
+    updates['rooms/' + newRoomId + '/members/' + currentUser.uid] = true;
+    updates['userMemberships/' + currentUser.uid + '/' + newRoomId] = true;
+    return update(ref(db), updates);
   }).catch(function (err) {
     alert('Could not create room: ' + err.message);
   });
@@ -749,59 +768,73 @@ function createRoom() {
 }
 
 // ---- Live room list ----
-// Sets track which rooms we've already attached listeners to, so re-renders
-// (new room added, etc.) don't stack duplicate listeners.
+//
+// Rather than opening a membership + a request listener for EVERY room
+// (which meant 2N+ separate network round-trips and was the actual cause
+// of the dashboard feeling slow to load), we read two small per-user
+// indexes once: "which rooms am I a member of" and "which am I pending
+// on". Combined with the room list itself, that's 3 listeners total,
+// regardless of how many rooms exist.
 const subscribedPresence = new Set();
-const subscribedMembership = new Set();
-const roomStatus = {}; // roomId -> { isMember, isPending }
+let allRoomsData = {};
+let myMemberships = {};
+let myRequests = {};
 
 onValue(ref(db, 'rooms'), function (snapshot) {
-  const data = snapshot.val();
+  allRoomsData = snapshot.val() || {};
+  renderRoomList();
+});
+onValue(ref(db, 'userMemberships/' + currentUser.uid), function (snapshot) {
+  myMemberships = snapshot.val() || {};
+  renderRoomList();
+});
+onValue(ref(db, 'userRequests/' + currentUser.uid), function (snapshot) {
+  myRequests = snapshot.val() || {};
+  renderRoomList();
+});
+
+function renderRoomList() {
+  const roomIds = Object.keys(allRoomsData);
   roomListEl.innerHTML = '';
 
-  if (!data) {
+  if (roomIds.length === 0) {
     roomListEl.innerHTML = '<div class="room-list-empty"><div class="icon-circle">💬</div>No rooms yet — create the first one above.</div>';
     return;
   }
 
-  Object.keys(data).forEach(function (roomId) {
-    const room = data[roomId];
+  roomIds.forEach(function (roomId) {
+    const room = allRoomsData[roomId];
+    const isMember = !!myMemberships[roomId];
+    const isPending = !!myRequests[roomId];
 
     const card = document.createElement('a');
-    card.className = 'room-card';
+    card.className = 'room-card' + (isMember ? '' : ' room-card-locked');
     card.id = 'card-' + roomId;
+    if (isMember) card.href = 'room.html?room=' + encodeURIComponent(roomId);
+
+    let actionHtml = '';
+    if (isPending) {
+      actionHtml = '<span class="room-status-pending">Pending approval</span>';
+    } else if (!isMember) {
+      actionHtml = '<button class="room-request-btn" data-room-id="' + roomId + '">Request to join</button>';
+    }
+
     card.innerHTML =
       '<div class="room-card-name">' + room.name + '</div>' +
       '<div class="room-card-meta">Started by ' + (room.createdByName || 'someone') + '</div>' +
       '<div class="room-card-online" id="online-' + roomId + '" style="display:none;">0 online</div>' +
-      '<div class="room-card-action" id="action-' + roomId + '"></div>';
+      '<div class="room-card-action">' + actionHtml + '</div>';
 
     roomListEl.appendChild(card);
-    updateRoomCard(roomId); // paint whatever status we already know, if any
 
-    if (!subscribedMembership.has(roomId)) {
-      subscribedMembership.add(roomId);
-      roomStatus[roomId] = { isMember: false, isPending: false };
-
-      onValue(ref(db, 'rooms/' + roomId + '/members/' + currentUser.uid), function (memberSnap) {
-        roomStatus[roomId].isMember = memberSnap.exists();
-        updateRoomCard(roomId);
-        maybeSubscribeToPresence(roomId);
-      });
-      onValue(ref(db, 'rooms/' + roomId + '/requests/' + currentUser.uid), function (reqSnap) {
-        roomStatus[roomId].isPending = reqSnap.exists();
-        updateRoomCard(roomId);
-      });
-    }
+    if (isMember) maybeSubscribeToPresence(roomId);
   });
-});
+}
 
 // The online-count preview needs a presence read, which the rules only
 // allow for actual members — so only subscribe (and only show the line at
-// all) once we know membership is confirmed, rather than showing a
-// permanently-stuck "0 online" for rooms we can't actually see into.
+// all) for rooms we're already confirmed to be in.
 function maybeSubscribeToPresence(roomId) {
-  if (!roomStatus[roomId] || !roomStatus[roomId].isMember) return;
   if (subscribedPresence.has(roomId)) return;
   subscribedPresence.add(roomId);
 
@@ -817,30 +850,6 @@ function maybeSubscribeToPresence(roomId) {
   });
 }
 
-// Paints a room card's clickability + action area based on the latest
-// known membership/request status for the signed-in user.
-function updateRoomCard(roomId) {
-  const card = document.getElementById('card-' + roomId);
-  const actionEl = document.getElementById('action-' + roomId);
-  if (!card || !actionEl) return;
-
-  const status = roomStatus[roomId] || { isMember: false, isPending: false };
-
-  if (status.isMember) {
-    card.href = 'room.html?room=' + encodeURIComponent(roomId);
-    card.classList.remove('room-card-locked');
-    actionEl.innerHTML = '';
-  } else if (status.isPending) {
-    card.removeAttribute('href');
-    card.classList.add('room-card-locked');
-    actionEl.innerHTML = '<span class="room-status-pending">Pending approval</span>';
-  } else {
-    card.removeAttribute('href');
-    card.classList.add('room-card-locked');
-    actionEl.innerHTML = '<button class="room-request-btn" data-room-id="' + roomId + '">Request to join</button>';
-  }
-}
-
 // One listener on the list container handles every "Request to join" click,
 // including ones on cards that get rebuilt later.
 roomListEl.addEventListener('click', function (e) {
@@ -851,11 +860,15 @@ roomListEl.addEventListener('click', function (e) {
   const roomId = btn.dataset.roomId;
   const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
 
-  set(ref(db, 'rooms/' + roomId + '/requests/' + currentUser.uid), {
+  const updates = {};
+  updates['rooms/' + roomId + '/requests/' + currentUser.uid] = {
     fullname: storedUser ? storedUser.fullname : currentUser.email,
     email: currentUser.email,
     requestedAt: new Date().toLocaleString(),
-  }).then(function () {
+  };
+  updates['userRequests/' + currentUser.uid + '/' + roomId] = true;
+
+  update(ref(db), updates).then(function () {
     showDashToast('Request sent — waiting for the room owner to approve it.', null);
   }).catch(function (err) {
     showDashToast('Could not send request: ' + err.message, null);
