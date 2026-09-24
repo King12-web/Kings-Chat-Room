@@ -586,6 +586,7 @@ onAuthStateChanged(auth, async function (user) {
 
   handleVerificationState();
   listenForNotifications();
+  startRoomList();
 });
 
 function showDashToast(message, actionLabel, actionFn) {
@@ -779,19 +780,30 @@ const subscribedPresence = new Set();
 let allRoomsData = {};
 let myMemberships = {};
 let myRequests = {};
+let roomListStarted = false;
 
-onValue(ref(db, 'rooms'), function (snapshot) {
-  allRoomsData = snapshot.val() || {};
-  renderRoomList();
-});
-onValue(ref(db, 'userMemberships/' + currentUser.uid), function (snapshot) {
-  myMemberships = snapshot.val() || {};
-  renderRoomList();
-});
-onValue(ref(db, 'userRequests/' + currentUser.uid), function (snapshot) {
-  myRequests = snapshot.val() || {};
-  renderRoomList();
-});
+// Must only be called once currentUser is actually set (i.e. from inside
+// onAuthStateChanged) — these listeners read currentUser.uid immediately
+// when registered, not just inside their callbacks, so calling this any
+// earlier throws (currentUser is still null at script-load time) and
+// silently kills every bit of code below it in this script.
+function startRoomList() {
+  if (roomListStarted) return;
+  roomListStarted = true;
+
+  onValue(ref(db, 'rooms'), function (snapshot) {
+    allRoomsData = snapshot.val() || {};
+    renderRoomList();
+  });
+  onValue(ref(db, 'userMemberships/' + currentUser.uid), function (snapshot) {
+    myMemberships = snapshot.val() || {};
+    renderRoomList();
+  });
+  onValue(ref(db, 'userRequests/' + currentUser.uid), function (snapshot) {
+    myRequests = snapshot.val() || {};
+    renderRoomList();
+  });
+}
 
 function renderRoomList() {
   const roomIds = Object.keys(allRoomsData);
