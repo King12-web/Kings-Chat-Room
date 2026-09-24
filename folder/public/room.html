@@ -663,6 +663,84 @@
   font-family: inherit;
   font-size: 16px; /* avoids iOS auto-zoom on focus */
 }
+.composer-icon-btn {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: var(--parchment-dim);
+  color: var(--lilac-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.composer-icon-btn:hover {
+  background: #ececec;
+  color: var(--ink);
+}
+
+.image-preview-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border-top: 1px solid #eee;
+  padding: 10px 24px;
+}
+.image-preview-strip img {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
+}
+.image-preview-info {
+  flex: 1;
+  min-width: 0;
+}
+.image-preview-info span {
+  font-size: 12px;
+  color: var(--lilac-dim);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upload-progress-track {
+  width: 100%;
+  height: 4px;
+  background: var(--parchment-dim);
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.upload-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--gold);
+  transition: width 0.15s ease;
+}
+#cancelImageBtn {
+  flex: none;
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #999;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.message-image {
+  max-width: 260px;
+  max-height: 260px;
+  border-radius: 12px;
+  display: block;
+  cursor: pointer;
+  margin-bottom: 4px;
+  object-fit: cover;
+}
 
 /* MOBILE */
 @media (max-width: 700px) {
@@ -775,7 +853,22 @@
       <button id="cancelReplyBtn" type="button" title="Cancel reply">&times;</button>
     </div>
 
+    <div class="image-preview-strip" id="imagePreviewStrip" style="display:none;">
+      <img id="imagePreviewThumb" alt="Selected image preview">
+      <div class="image-preview-info">
+        <span id="imagePreviewName"></span>
+        <div class="upload-progress-track" id="uploadProgressTrack" style="display:none;">
+          <div class="upload-progress-fill" id="uploadProgressFill"></div>
+        </div>
+      </div>
+      <button id="cancelImageBtn" type="button" title="Remove image">&times;</button>
+    </div>
+
     <div class="message-composer">
+      <input type="file" id="imageFileInput" accept="image/*" style="display:none;">
+      <button id="attachImageBtn" class="composer-icon-btn" type="button" title="Attach an image">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="3" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><circle cx="6" cy="7" r="1.3" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 12.5 6.5 9l2.5 2.2L12 8l3.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      </button>
       <input type="text" id="messageInput" placeholder="Type your message here...">
       <button id="sendButton" class="btn-gold">Send</button>
     </div>
@@ -809,6 +902,14 @@ import {
   onDisconnect,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
 
+// ---- Cloudinary config ----
+// Fill these in with your own values from cloudinary.com — Cloud name is
+// on your Dashboard home page; the upload preset name is whatever you set
+// under Settings > Upload > Upload presets (must be "Unsigned").
+const CLOUDINARY_CLOUD_NAME = 'skdq8mcw';
+const CLOUDINARY_UPLOAD_PRESET = 'kingschat_images';
+const MAX_IMAGE_SIZE_MB = 10;
+
 // ---- Which room is this? ----
 const params = new URLSearchParams(window.location.search);
 const roomId = params.get('room');
@@ -825,6 +926,14 @@ const onlinePopoverList = document.getElementById('onlinePopoverList');
 const onlinePopoverEmpty = document.getElementById('onlinePopoverEmpty');
 const messageInput = document.getElementById('messageInput');
 const sendButton = document.getElementById('sendButton');
+const attachImageBtn = document.getElementById('attachImageBtn');
+const imageFileInput = document.getElementById('imageFileInput');
+const imagePreviewStrip = document.getElementById('imagePreviewStrip');
+const imagePreviewThumb = document.getElementById('imagePreviewThumb');
+const imagePreviewName = document.getElementById('imagePreviewName');
+const cancelImageBtn = document.getElementById('cancelImageBtn');
+const uploadProgressTrack = document.getElementById('uploadProgressTrack');
+const uploadProgressFill = document.getElementById('uploadProgressFill');
 const messagesEl = document.getElementById('messages');
 const emptyStateEl = document.getElementById('emptyState');
 const replyPreviewEl = document.getElementById('replyPreview');
@@ -1037,13 +1146,93 @@ document.addEventListener('click', function (e) {
   }
 });
 
+// ---- Image attachment: select, preview, cancel ----
+let pendingImageFile = null;
+
+attachImageBtn.addEventListener('click', function () {
+  imageFileInput.click();
+});
+
+imageFileInput.addEventListener('change', function () {
+  const file = imageFileInput.files[0];
+  imageFileInput.value = ''; // lets picking the exact same file again still fire 'change'
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    alert('Please choose an image file.');
+    return;
+  }
+  if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+    alert('That image is larger than ' + MAX_IMAGE_SIZE_MB + 'MB — please choose a smaller one.');
+    return;
+  }
+
+  pendingImageFile = file;
+  imagePreviewThumb.src = URL.createObjectURL(file);
+  imagePreviewName.textContent = file.name;
+  uploadProgressTrack.style.display = 'none';
+  uploadProgressFill.style.width = '0%';
+  imagePreviewStrip.style.display = 'flex';
+});
+
+cancelImageBtn.addEventListener('click', clearPendingImage);
+
+function clearPendingImage() {
+  pendingImageFile = null;
+  imagePreviewStrip.style.display = 'none';
+  uploadProgressTrack.style.display = 'none';
+}
+
+// Uploads directly from the browser to Cloudinary using an unsigned upload
+// preset — no backend/API secret needed. Uses XMLHttpRequest instead of
+// fetch() specifically because fetch has no built-in upload-progress event.
+function uploadImageToCloudinary(file, onProgress) {
+  return new Promise(function (resolve, reject) {
+    if (CLOUDINARY_CLOUD_NAME === 'YOUR_CLOUD_NAME') {
+      reject(new Error('Cloudinary isn’t configured yet — fill in CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET at the top of this file.'));
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'https://api.cloudinary.com/v1_1/' + CLOUDINARY_CLOUD_NAME + '/image/upload');
+
+    xhr.upload.addEventListener('progress', function (e) {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          resolve(data.secure_url);
+        } catch (err) {
+          reject(new Error('Unexpected response from Cloudinary.'));
+        }
+      } else {
+        reject(new Error('Upload failed (' + xhr.status + '). Check your Cloudinary preset settings.'));
+      }
+    };
+    xhr.onerror = function () {
+      reject(new Error('Network error while uploading the image.'));
+    };
+
+    xhr.send(formData);
+  });
+}
+
 // ---- Sending (or updating) a message ----
 sendButton.addEventListener('click', sendOrUpdateMessage);
 messageInput.addEventListener('keydown', function (e) {
   if (e.key === 'Enter') sendOrUpdateMessage();
 });
 
-function sendOrUpdateMessage() {
+async function sendOrUpdateMessage() {
   const storedUser = localStorage.getItem('user');
   if (!storedUser) {
     console.error('No user found in localStorage. Cannot send message.');
@@ -1052,30 +1241,57 @@ function sendOrUpdateMessage() {
   const convUser = JSON.parse(storedUser);
 
   const text = messageInput.value.trim();
-  if (!text) return;
+  if (!text && !pendingImageFile) return; // nothing to send
 
   if (editingIndex !== null) {
+    if (!text) return; // edits stay text-only for now
     update(ref(db, 'chats/' + roomId + '/' + editingIndex), {
       message: text,
       edited: true,
     });
     editingIndex = null;
     sendButton.textContent = 'Send';
-  } else {
-    const chat = {
-      message: text,
-      uid: convUser.uid,
-      email: convUser.email,
-      fullname: convUser.fullname,
-      profileImage: convUser.profilePic,
-      timeStamp: new Date().toLocaleString(),
-      edited: false,
-      replyTo: replyingToIndex !== null ? buildReplySnippet(replyingToIndex) : null,
-    };
-
-    const nextIndex = getNextChatIndex();
-    set(ref(db, 'chats/' + roomId + '/' + nextIndex), chat);
+    messageInput.value = '';
+    clearReply();
+    return;
   }
+
+  const chat = {
+    message: text, // may be empty — an image with no caption is fine
+    uid: convUser.uid,
+    email: convUser.email,
+    fullname: convUser.fullname,
+    profileImage: convUser.profilePic,
+    timeStamp: new Date().toLocaleString(),
+    edited: false,
+    replyTo: replyingToIndex !== null ? buildReplySnippet(replyingToIndex) : null,
+  };
+
+  if (pendingImageFile) {
+    const fileToSend = pendingImageFile;
+    sendButton.disabled = true;
+    sendButton.textContent = 'Uploading\u2026';
+    uploadProgressTrack.style.display = 'block';
+
+    try {
+      const url = await uploadImageToCloudinary(fileToSend, function (pct) {
+        uploadProgressFill.style.width = pct + '%';
+      });
+      chat.attachment = { type: 'image', url: url };
+    } catch (err) {
+      alert(err.message);
+      sendButton.disabled = false;
+      sendButton.textContent = 'Send';
+      return; // don't send a message if the upload failed
+    }
+
+    sendButton.disabled = false;
+    sendButton.textContent = 'Send';
+    clearPendingImage();
+  }
+
+  const nextIndex = getNextChatIndex();
+  set(ref(db, 'chats/' + roomId + '/' + nextIndex), chat);
 
   messageInput.value = '';
   clearReply();
@@ -1143,6 +1359,23 @@ function getInitials(name) {
   return (name || '?').trim().split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
 }
 
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// Only URLs actually hosted on Cloudinary get rendered as images — the
+// database rules can't fully validate this (a plain string field), so this
+// is the client-side backstop against a tampered/attacker-supplied URL.
+function isSafeCloudinaryUrl(url) {
+  return typeof url === 'string' && /^https:\/\/res\.cloudinary\.com\//.test(url);
+}
+
 function buildMessageEl(index, chat, myUid, isLatestOwn) {
   const isMine = chat.uid === myUid;
   const row = document.createElement('div');
@@ -1150,7 +1383,7 @@ function buildMessageEl(index, chat, myUid, isLatestOwn) {
 
   let replyHtml = '';
   if (chat.replyTo) {
-    replyHtml = '<div class="reply-quote">Replying to ' + chat.replyTo.fullname + ': "' + chat.replyTo.message + '"</div>';
+    replyHtml = '<div class="reply-quote">Replying to ' + escapeHtml(chat.replyTo.fullname) + ': "' + escapeHtml(chat.replyTo.message) + '"</div>';
   }
 
   const ownerActions = isMine
@@ -1179,14 +1412,24 @@ function buildMessageEl(index, chat, myUid, isLatestOwn) {
       '</div>';
   }
 
+  let imageHtml = '';
+  if (chat.attachment && chat.attachment.type === 'image' && isSafeCloudinaryUrl(chat.attachment.url)) {
+    imageHtml = '<img class="message-image" src="' + chat.attachment.url + '" data-action="view-image" alt="Shared image">';
+  }
+
+  const textHtml = chat.message
+    ? '<div class="message-text">' + escapeHtml(chat.message) +
+        (chat.edited ? ' <span class="edited-tag">(edited)</span>' : '') +
+      '</div>'
+    : '';
+
   row.innerHTML =
     avatarHtml +
     '<div class="message-bubble">' +
-      '<div class="message-sender">' + (chat.fullname || chat.email) + '</div>' +
+      '<div class="message-sender">' + escapeHtml(chat.fullname || chat.email) + '</div>' +
       replyHtml +
-      '<div class="message-text">' + chat.message +
-        (chat.edited ? ' <span class="edited-tag">(edited)</span>' : '') +
-      '</div>' +
+      imageHtml +
+      textHtml +
       '<div class="message-meta">' +
         '<span class="message-time">' + chat.timeStamp + '</span>' +
         '<button class="msg-action" data-action="reply" data-index="' + index + '">Reply</button>' +
@@ -1224,6 +1467,13 @@ async function populateSeenAvatars(index, seenByUids) {
 }
 
 // ---- Reply / Edit / Delete ----
+messagesEl.addEventListener('click', function (e) {
+  const img = e.target.closest('[data-action="view-image"]');
+  if (img) {
+    window.open(img.src, '_blank');
+    return;
+  }
+});
 messagesEl.addEventListener('click', function (e) {
   const btn = e.target.closest('.msg-action');
   if (!btn) return;
